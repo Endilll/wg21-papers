@@ -55,13 +55,13 @@ Wording changes are relative to [N3886](https://open-std.org/JTC1/SC22/WG14/www/
 > - [their declarations consist of the same sequence of tokens;]{.add}
 > - [and, corresponding identifiers in their declarations denote the same entity.]{.add}
 >
-> Otherwise, the structure, union, or enumerated types are incompatible.^34)^
+> Otherwise, [the]{.rm} [it is implementation-defined whether two]{.add} structure, union, or enumerated types are [incompatible]{.rm} [compatible]{.add}.^[34)]{.rm}^
 >
 > [2]{.pnum} All declarations that refer to the same object or function shall have compatible type; otherwise, the behavior is undefined.
 >
 > [footnote33]{.pnum} Two types are not expected to be identical to be compatible.
 >
-> [footnote34]{.pnum} A structure, union, or enumerated type without a tag [or an incomplete structure, union or enumerated type]{.rm} is not compatible with any other structure, union or enum type declared in the same translation unit.
+> [footnote34]{.pnum} [A structure, union, or enumerated type without a tag [or an incomplete structure, union or enumerated type]{.rm} is not compatible with any other structure, union or enum type declared in the same translation unit.]{.rm}
 
 ## 6.7.2.3 Tags
 

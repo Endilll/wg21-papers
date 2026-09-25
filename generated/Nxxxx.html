@@ -734,17 +734,19 @@ consist of the same sequence of tokens;</ins></span></li>
 identifiers in their declarations denote the same
 entity.</ins></span></li>
 </ul>
-<p>Otherwise, the structure, union, or enumerated types are
-incompatible.<sup>34)</sup></p>
+<p>Otherwise, <span class="rm" style="color: #bf0303"><del>the</del></span> <span class="add" style="color: #006e28"><ins>it is implementation-defined whether
+two</ins></span> structure, union, or enumerated types are <span class="rm" style="color: #bf0303"><del>incompatible</del></span> <span class="add" style="color: #006e28"><ins>compatible</ins></span>.<sup><span class="rm" style="color: #bf0303"><del>34)</del></span></sup></p>
 <p><span class="marginalizedparent"><a id="pnum-1" href="#pnum-1" class="marginalized">2</a></span>
 All declarations that refer to the same object or function shall have
 compatible type; otherwise, the behavior is undefined.</p>
 <p><span class="marginalizedparent"><a id="pnum-2" href="#pnum-2" class="marginalized">footnote33</a></span>
 Two types are not expected to be identical to be compatible.</p>
 <p><span class="marginalizedparent"><a id="pnum-3" href="#pnum-3" class="marginalized">footnote34</a></span>
-A structure, union, or enumerated type without a tag <span class="rm" style="color: #bf0303"><del>or an incomplete structure, union or
+<span class="rm" style="color: #bf0303"><del>A structure, union, or
+enumerated type without a tag <span class="rm" style="color: #bf0303"><del>or an incomplete structure, union or
 enumerated type</del></span> is not compatible with any other structure,
-union or enum type declared in the same translation unit.</p>
+union or enum type declared in the same translation
+unit.</del></span></p>
 </blockquote>
 <h2 data-number="4.2" id="tags"><span class="header-section-number">4.2</span> 6.7.2.3 Tags<a href="#tags" class="self-link"></a></h2>
 <h3 data-number="4.2.1" id="constraints"><span class="header-section-number">4.2.1</span> Constraints<a href="#constraints" class="self-link"></a></h3>
@@ -829,7 +831,7 @@ structure, union, or enumerated type in the same scope:</p>
 <div class="add" style="color: #006e28">
 
 <div class="sourceCode" id="cb2"><pre class="sourceCode default c"><code class="sourceCode default"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>enum O { A = 1, B = 1 + 1 };</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>enum O { B = 2, A = 1 };     <span class="comment">// different token sequence</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>enum O { A = 1, B = 2 };     <span class="comment">// different token sequence</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>const int i;</span>
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>void bar(void)</span>
