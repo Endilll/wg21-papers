@@ -15,15 +15,15 @@ toc-depth: 2
 # Abstract
 
 [N3037](https://open-std.org/JTC1/SC22/WG14/www/docs/n3037.pdf) "Improved Rules for Tag Compatibility" applied cross-translation-unit rules of type compatibility within the same translation unit.
-We believe that those rules doesn't need to be as permissive within translation unit to support the motivating use cases listed in N3037, as that causes a number of side effects we consider undesireable.
+We believe that those rules doesn't need to be as permissive within a translation unit to support the motivation of N3037, as that causes a number of side effects we consider undesireable.
 
 # Motivation
 
 TBD
 
-# Proposed change
+# Approach
 
-Require token-for-token equivalence between compatible type definitions within TU.
+Wording for compatibility of types between TUs is basically reverted to C17 state while still handling completeness array types, but now formatted with bullets. Compatibility of types within the same TU now requires them to have the same tag (and have one in the first place), and for their declarations to consist of the same sequence of tokens, where corresponding identifiers denote the same entities.
 
 # Proposed wording
 
@@ -34,7 +34,7 @@ Wording changes are relative to [N3886](https://open-std.org/JTC1/SC22/WG14/www/
 > [1]{.pnum} Two types are _compatible types_ if they are the same. Additional rules for determining whether two types are compatible are described in 6.7.3 for type specifiers, in 6.7.4 for type qualifiers, and in 6.7.7 for declarators.^33)^
 > Moreover, two [complete]{.rm} structure, union, or enumerated types declared [with the same tag]{.rm} [in different translation units]{.add} are compatible if [members satisfy]{.rm} the following requirements [are satisfied]{.add}:
 >
-> - [one is declared with a tag, the other is declared with the same tag,]{.add}
+> - [if one is declared with a tag, the other is declared with the same tag,]{.add}
 > - [and, if both are completed somewhere in their respective translation units:]{.add}
 >   - there [shall be]{.rm} [is]{.add} a one-to-one correspondence between their members such that each pair of corresponding members are declared with compatible types;
 >   - if one member of the pair is declared with a complete array type, the other is declared with a complete array type;
@@ -71,6 +71,10 @@ Wording changes are relative to [N3886](https://open-std.org/JTC1/SC22/WG14/www/
 > [If two declarations of the same type have a member-declaration or enumerator-list, one shall not be nested within the other and both declarations shall fulfill all requirements of compatible types (6.2.7) with the additional requirement that corresponding members of structure or union types shall have the same (and not merely compatible) types.]{.rm}
 >
 > [2]{.pnum} [. . .]
+
+::: draftnote
+The removed restriction was only working within a TU, and is now subsumed by much stricter restriction of token sequences being the same.
+:::
 
 ### Semantics
 

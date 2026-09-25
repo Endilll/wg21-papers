@@ -649,7 +649,7 @@ rules within translation unit</h1>
 <ul>
 <li><a href="#abstract" id="toc-abstract"><span class="toc-section-number">1</span> Abstract</a></li>
 <li><a href="#motivation" id="toc-motivation"><span class="toc-section-number">2</span> Motivation</a></li>
-<li><a href="#proposed-change" id="toc-proposed-change"><span class="toc-section-number">3</span> Proposed change</a></li>
+<li><a href="#approach" id="toc-approach"><span class="toc-section-number">3</span> Approach</a></li>
 <li><a href="#proposed-wording" id="toc-proposed-wording"><span class="toc-section-number">4</span> Proposed wording</a>
 <ul>
 <li><a href="#compatible-type-and-composite-type" id="toc-compatible-type-and-composite-type"><span class="toc-section-number">4.1</span> 6.2.7 Compatible type and
@@ -662,14 +662,18 @@ composite type</a></li>
 <p><a href="https://open-std.org/JTC1/SC22/WG14/www/docs/n3037.pdf">N3037</a>
 “Improved Rules for Tag Compatibility” applied cross-translation-unit
 rules of type compatibility within the same translation unit. We believe
-that those rules doesn’t need to be as permissive within translation
-unit to support the motivating use cases listed in N3037, as that causes
-a number of side effects we consider undesireable.</p>
+that those rules doesn’t need to be as permissive within a translation
+unit to support the motivation of N3037, as that causes a number of side
+effects we consider undesireable.</p>
 <h1 data-number="2" id="motivation"><span class="header-section-number">2</span> Motivation<a href="#motivation" class="self-link"></a></h1>
 <p>TBD</p>
-<h1 data-number="3" id="proposed-change"><span class="header-section-number">3</span> Proposed change<a href="#proposed-change" class="self-link"></a></h1>
-<p>Require token-for-token equivalence between compatible type
-definitions within TU.</p>
+<h1 data-number="3" id="approach"><span class="header-section-number">3</span> Approach<a href="#approach" class="self-link"></a></h1>
+<p>Wording for compatibility of types between TUs is basically reverted
+to C17 state while still handling completeness array types, but now
+formatted with bullets. Compatibility of types within the same TU now
+requires them to have the same tag (and have one in the first place),
+and for their declarations to consist of the same sequence of tokens,
+where corresponding identifiers denote the same entities.</p>
 <h1 data-number="4" id="proposed-wording"><span class="header-section-number">4</span> Proposed wording<a href="#proposed-wording" class="self-link"></a></h1>
 <p>Wording changes are relative to <a href="https://open-std.org/JTC1/SC22/WG14/www/docs/n3886.pdf">N3886</a>.</p>
 <h2 data-number="4.1" id="compatible-type-and-composite-type"><span class="header-section-number">4.1</span> 6.2.7 Compatible type and
@@ -685,8 +689,8 @@ units</ins></span> are compatible if <span class="rm" style="color: #bf0303"><de
 requirements <span class="add" style="color: #006e28"><ins>are
 satisfied</ins></span>:</p>
 <ul>
-<li><span class="add" style="color: #006e28"><ins>one is declared with a
-tag, the other is declared with the same tag,</ins></span></li>
+<li><span class="add" style="color: #006e28"><ins>if one is declared
+with a tag, the other is declared with the same tag,</ins></span></li>
 <li><span class="add" style="color: #006e28"><ins>and, if both are
 completed somewhere in their respective translation units:</ins></span>
 <ul>
@@ -765,6 +769,11 @@ same (and not merely compatible) types.</del></span></p>
 <p><span class="marginalizedparent"><a id="pnum-5" href="#pnum-5" class="marginalized">2</a></span>
 [. . .]</p>
 </blockquote>
+<div class="draftnote" style="color: #0000ff">
+<p>[ Drafting note: The removed restriction was only working within a
+TU, and is now subsumed by much stricter restriction of token sequences
+being the same. ]</p>
+</div>
 <h3 data-number="4.2.2" id="semantics"><span class="header-section-number">4.2.2</span> Semantics<a href="#semantics" class="self-link"></a></h3>
 <blockquote>
 <p><span class="marginalizedparent"><a id="pnum-6" href="#pnum-6" class="marginalized">6</a></span>
