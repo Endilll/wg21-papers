@@ -19,7 +19,7 @@ We believe that those rules doesn't need to be as permissive within a translatio
 
 # Why is N2366 being referred to?
 
-While N3037 was the paper that was voted into C23, this paper quotes an earlier revision of it, [N2366](https://open-std.org/JTC1/SC22/WG14/www/docs/n2366.pdf), because that was the last revision that expanded on the motivation and background. We realize that not all of N2366 made it into C23, so we're quoting only part of it that we think are relevant for N3037.
+While N3037 was the paper that was voted into C23, this paper quotes an earlier revision of it, [N2366](https://open-std.org/JTC1/SC22/WG14/www/docs/n2366.pdf), because that was the last revision that expanded on the motivation and background. We realize that not all of N2366 made it into C23, so we're quoting only parts of it that we think are relevant for N3037.
 
 # Motivation
 
@@ -55,10 +55,6 @@ As you can see, the pre-existing type compatibility check for the purposes of gl
 
 The example above is based on Clang implementation details, but we expect that other implementations that support LTO share the properties mentioned above.
 
-## Global static analysis works in C++ despite the One Definition Rule
-
-It should be noted that C++ always had a rule that you can have only one definition of an entity in a program, which is then relaxed to accomodate for entities defined in headers. As far as we know, this never prevented static analyzers from performing analysis even on big codebases, and we're not aware of any intents to relax that rule for C++ in the same vein as N3037 did.
-
 ## It is not trivial to support different definitions in the same TU
 
 N2366: _"This is not expected to be a significant burden to implementors."_
@@ -66,6 +62,18 @@ N2366: _"This is not expected to be a significant burden to implementors."_
 Clang front-end, by the virtue of implementing C++20 modules, already had a structural equivalence check not too dissimilar to what N3037 needs. However, switching it on in C23 mode was just a start of a long trail of bugs ([#141724](https://github.com/llvm/llvm-project/issues/141724), [#149965](https://github.com/llvm/llvm-project/issues/149965), [#150594](https://github.com/llvm/llvm-project/issues/150594), [#151394](https://github.com/llvm/llvm-project/issues/151394), [#186196](https://github.com/llvm/llvm-project/issues/186196), [#188476](https://github.com/llvm/llvm-project/issues/188476), [#201647](https://github.com/llvm/llvm-project/issues/201647)) and fixes ([#138516](https://github.com/llvm/llvm-project/pull/138516), [#141783](https://github.com/llvm/llvm-project/pull/141783), [#150282](https://github.com/llvm/llvm-project/pull/150282), [#150946](https://github.com/llvm/llvm-project/pull/150946), [#168769](https://github.com/llvm/llvm-project/pull/168769)).
 
 N3037 affects the semantic analysis of the code that goes into headers, which might be consumed by a C++ compiler. Given the amount of trouble we went through so far to make N3037 work in C23 language mode, it seems unlikely that Clang is going to support this feature in any C++ mode, because C++ has even more features that interact with N3037. This means that C projects that would like their headers to be working in C++ compilers will have to abandon a significant chunk of C++ users which use Clang.
+
+```c
+#define PRODUCT(A ,B) \
+     struct prod { A a; B b; }
+
+#define SUM(A, B) \
+     struct sum { bool flag; union { A a; B b; }; }
+
+int foo(PRODUCT(int, SUM(float, double)) x);
+
+PRODUCT(int, SUM(float, double)) p; // well-formed C23, error in C++: redefinition of 'prod'
+```
 
 ## Go to Definition
 
@@ -89,11 +97,31 @@ struct S {
 
 Wording for compatibility of types between TUs is basically reverted to C17 state while still handling completeness of array types, but now formatted with bullets. Compatibility of types within the same TU now requires them to have the same tag (and have one in the first place), and for their declarations to consist of the same sequence of tokens, where corresponding identifiers denote the same entities.
 
+Example 3 from N3037 remains well-formed:
+
+```c
+// header
+
+#define PRODUCT(A ,B) \
+     struct prod { A a; B b; }
+
+#define SUM(A, B) \
+     struct sum { bool flag; union { A a; B b; }; }
+
+// c file
+
+void foo(PRODUCT(int, SUM(float, double)) x);
+void bar(PRODUCT(int, SUM(float, double)) y)
+{
+     foo(y); // compatible type
+}
+```
+
 # Proposed wording
 
 Wording changes are relative to [N3886](https://open-std.org/JTC1/SC22/WG14/www/docs/n3886.pdf).
 
-## 6.2.7 Compatible type and composite type
+## (6.2.7) Compatible type and composite type
 
 > [1]{.pnum} Two types are _compatible types_ if they are the same. Additional rules for determining whether two types are compatible are described in 6.7.3 for type specifiers, in 6.7.4 for type qualifiers, and in 6.7.7 for declarators.^33)^
 > Moreover, two [complete]{.rm} structure, union, or enumerated types declared [with the same tag]{.rm} [in different translation units]{.add} are compatible if [members satisfy]{.rm} the following requirements [are satisfied]{.add}:
@@ -140,7 +168,7 @@ Wording changes are relative to [N3886](https://open-std.org/JTC1/SC22/WG14/www/
 >
 > [footnote34]{.pnum} [A structure, union, or enumerated type without a tag [or an incomplete structure, union or enumerated type]{.rm} is not compatible with any other structure, union or enum type declared in the same translation unit.]{.rm}
 
-## 6.7.2.3 Tags
+## (6.7.2.3) Tags
 
 ### Constraints
 
