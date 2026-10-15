@@ -1,7 +1,7 @@
 ---
 title: "Tighten type compatibility rules within translation unit"
 document: Nxxxx
-date: 2026-10-14
+date: 2026-10-15
 audience: WG14
 author:
   - name: Vlad Serebrennikov
@@ -17,13 +17,23 @@ toc-depth: 2
 [N3037](https://open-std.org/JTC1/SC22/WG14/www/docs/n3037.pdf) "Improved Rules for Tag Compatibility" applied cross-translation-unit rules of type compatibility within the same translation unit.
 We believe that those rules doesn't need to be as permissive within a translation unit to support the motivation of N3037, as that causes a number of side effects we consider undesireable.
 
+# Why is N2366 being referred to?
+
+While N3037 was the paper that was voted into C23, this paper quotes an earlier revision of it, [N2366](https://open-std.org/JTC1/SC22/WG14/www/docs/n2366.pdf), because that was the last revision that expanded on the motivation and background. We realize that not all of N2366 made it into C23, so we're quoting only part of it that we think are relevant for N3037.
+
 # Motivation
 
 ## Cross-TU compatibility rules are just admitting ABI reality
 
-C17-era compatibility rules across TUs were not designed from first principles — they were admitting the reality of how translation phase 8 is implemented between compilers and linkers, and they were shaped by that reality. Linkers perform no semantic checks: if the resulting program happens to work, it works. N2366 claims that the existing compilers have to implement a version of compatibility rules to perform global optimization (LTO), but that missed two important aspects for at least one implementation (Clang).
+N2366: _"While all other types follow basic structural typing rules for identity and compatibility, tagged types have much more complicated rules which are different when applied to types declared inside the same or in different translation units. [. . .] While it is a common and expected property of type systems that mutual compatibility of types is transitive, this is not the case in C: The sets of types which are mutually compatible to each other do not form equivalence classes."_
 
-First, intra-TU type compatibility rules have to be enforces by compiler frontend during translation phase 7, whereas cross-TU compatibility rules during LTO are enforced by the middle-end during translation phase 8. Front-end and middle-end are different parts of the compiler that operate on vastly different program representations (AST vs LLVM IR), which makes it quite hard to share code between them, including the proposed algorithm for evaluating structural equivalence.
+C17-era compatibility rules across TUs were not designed from first principles — they were admitting the reality of how translation phase 8 is implemented between compilers and linkers, and they were shaped by that reality. Linkers perform no semantic checks: if the resulting program happens to work, it works.
+
+N2366: _"It should be noted that many existing compilers already implement a version of this algorithm, because they need to to be able to determine compatibility of types across translation units when performing global optimization – removing the difference between compatibility of types declared in the same translation unit and types declared between translation unit would simplify such compilers."_
+
+That missed two important aspects for at least one implementation (Clang).
+
+First, intra-TU type compatibility rules have to be enforces by the compiler frontend during translation phase 7, whereas cross-TU compatibility rules during LTO are enforced by the middle-end during translation phase 8. Front-end and middle-end are different parts of the compiler that operate on vastly different program representations (AST vs LLVM IR), which makes it quite hard to share code between them, including the proposed algorithm for evaluating structural equivalence.
 
 Second, the structural equivalence check that LTO can (and need to) perform is severely limited by the representation it operates on. The following C structure:
 
@@ -43,13 +53,19 @@ is transformed into the following LLVM IR type:
 
 As you can see, the pre-existing type compatibility check for the purposes of global optimization ignores a lot of semantics important for the Standard C. Given that this has been deployed for years, if not for a decade, this loose check is sufficient to perform global optimizations.
 
+The example above is based on Clang implementation details, but we expect that other implementations that support LTO share the properties mentioned above.
+
 ## Global static analysis works in C++ despite the One Definition Rule
 
 It should be noted that C++ always had a rule that you can have only one definition of an entity in a program, which is then relaxed to accomodate for entities defined in headers. As far as we know, this never prevented static analyzers from performing analysis even on big codebases, and we're not aware of any intents to relax that rule for C++ in the same vein as N3037 did.
 
 ## It is not trivial to support different definitions in the same TU
 
-Clang, by the virtue of implementing C++20 modules, already had a structural equivalence check not too dissimilar to what N3037 needs. However, switching it on in C23 mode was just a start of a long trail of bugs ([#141724](https://github.com/llvm/llvm-project/issues/141724), [#149965](https://github.com/llvm/llvm-project/issues/149965), [#150594](https://github.com/llvm/llvm-project/issues/150594), [#151394](https://github.com/llvm/llvm-project/issues/151394), [#186196](https://github.com/llvm/llvm-project/issues/186196), [#188476](https://github.com/llvm/llvm-project/issues/188476), [#201647](https://github.com/llvm/llvm-project/issues/201647)) and fixes ([#138516](https://github.com/llvm/llvm-project/pull/138516), [#141783](https://github.com/llvm/llvm-project/pull/141783), [#150282](https://github.com/llvm/llvm-project/pull/150282), [#150946](https://github.com/llvm/llvm-project/pull/150946), [#168769](https://github.com/llvm/llvm-project/pull/168769)). Given the amount of trouble we went through so far, it seems unlikely that Clang is going to support this feature in any C++ mode, because C++ has even more features that interact with N3037.
+N2366: _"This is not expected to be a significant burden to implementors."_
+
+Clang front-end, by the virtue of implementing C++20 modules, already had a structural equivalence check not too dissimilar to what N3037 needs. However, switching it on in C23 mode was just a start of a long trail of bugs ([#141724](https://github.com/llvm/llvm-project/issues/141724), [#149965](https://github.com/llvm/llvm-project/issues/149965), [#150594](https://github.com/llvm/llvm-project/issues/150594), [#151394](https://github.com/llvm/llvm-project/issues/151394), [#186196](https://github.com/llvm/llvm-project/issues/186196), [#188476](https://github.com/llvm/llvm-project/issues/188476), [#201647](https://github.com/llvm/llvm-project/issues/201647)) and fixes ([#138516](https://github.com/llvm/llvm-project/pull/138516), [#141783](https://github.com/llvm/llvm-project/pull/141783), [#150282](https://github.com/llvm/llvm-project/pull/150282), [#150946](https://github.com/llvm/llvm-project/pull/150946), [#168769](https://github.com/llvm/llvm-project/pull/168769)).
+
+N3037 affects the semantic analysis of the code that goes into headers, which might be consumed by a C++ compiler. Given the amount of trouble we went through so far to make N3037 work in C23 language mode, it seems unlikely that Clang is going to support this feature in any C++ mode, because C++ has even more features that interact with N3037. This means that C projects that would like their headers to be working in C++ compilers will have to abandon a significant chunk of C++ users which use Clang.
 
 ## Go to Definition
 
@@ -68,8 +84,6 @@ struct S {
   [[deprecated("don't use 'b'")]] int b;
 };
 ```
-
-
 
 # Approach
 
@@ -106,6 +120,19 @@ Wording changes are relative to [N3886](https://open-std.org/JTC1/SC22/WG14/www/
 > - [and, corresponding identifiers in their declarations denote the same entity.]{.add}
 >
 > Otherwise, [the]{.rm} [it is implementation-defined whether two]{.add} structure, union, or enumerated types are [incompatible]{.rm} [compatible]{.add}.^[34)]{.rm}^
+>
+> ::: add
+> ::: example
+> ```cpp
+> constexpr int n = 4;
+> void f() {
+>   struct S { int arr[n]; };
+>   constexpr int n = 4;
+>   struct S { int arr[n]; }; // error: n denotes a different entity
+> }
+> ```
+> :::
+> :::
 >
 > [2]{.pnum} All declarations that refer to the same object or function shall have compatible type; otherwise, the behavior is undefined.
 >
