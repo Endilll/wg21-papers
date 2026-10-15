@@ -1,7 +1,7 @@
 ---
 title: "Tighten type compatibility rules within translation unit"
 document: Nxxxx
-date: 2026-09-24
+date: 2026-10-14
 audience: WG14
 author:
   - name: Vlad Serebrennikov
@@ -19,11 +19,61 @@ We believe that those rules doesn't need to be as permissive within a translatio
 
 # Motivation
 
-TBD
+## Cross-TU compatibility rules are just admitting ABI reality
+
+C17-era compatibility rules across TUs were not designed from first principles — they were admitting the reality of how translation phase 8 is implemented between compilers and linkers, and they were shaped by that reality. Linkers perform no semantic checks: if the resulting program happens to work, it works. N2366 claims that the existing compilers have to implement a version of compatibility rules to perform global optimization (LTO), but that missed two important aspects for at least one implementation (Clang).
+
+First, intra-TU type compatibility rules have to be enforces by compiler frontend during translation phase 7, whereas cross-TU compatibility rules during LTO are enforced by the middle-end during translation phase 8. Front-end and middle-end are different parts of the compiler that operate on vastly different program representations (AST vs LLVM IR), which makes it quite hard to share code between them, including the proposed algorithm for evaluating structural equivalence.
+
+Second, the structural equivalence check that LTO can (and need to) perform is severely limited by the representation it operates on. The following C structure:
+
+```c
+struct S {
+  int a;
+  const volatile _Atomic int b;
+  _BitInt(17) c;
+};
+```
+
+is transformed into the following LLVM IR type:
+
+```llvm
+%struct.S = type { i32, i32, i32 }
+```
+
+As you can see, the pre-existing type compatibility check for the purposes of global optimization ignores a lot of semantics important for the Standard C. Given that this has been deployed for years, if not for a decade, this loose check is sufficient to perform global optimizations.
+
+## Global static analysis works in C++ despite the One Definition Rule
+
+It should be noted that C++ always had a rule that you can have only one definition of an entity in a program, which is then relaxed to accomodate for entities defined in headers. As far as we know, this never prevented static analyzers from performing analysis even on big codebases, and we're not aware of any intents to relax that rule for C++ in the same vein as N3037 did.
+
+## It is not trivial to support different definitions in the same TU
+
+Clang, by the virtue of implementing C++20 modules, already had a structural equivalence check not too dissimilar to what N3037 needs. However, switching it on in C23 mode was just a start of a long trail of bugs ([#141724](https://github.com/llvm/llvm-project/issues/141724), [#149965](https://github.com/llvm/llvm-project/issues/149965), [#150594](https://github.com/llvm/llvm-project/issues/150594), [#151394](https://github.com/llvm/llvm-project/issues/151394), [#186196](https://github.com/llvm/llvm-project/issues/186196), [#188476](https://github.com/llvm/llvm-project/issues/188476), [#201647](https://github.com/llvm/llvm-project/issues/201647)) and fixes ([#138516](https://github.com/llvm/llvm-project/pull/138516), [#141783](https://github.com/llvm/llvm-project/pull/141783), [#150282](https://github.com/llvm/llvm-project/pull/150282), [#150946](https://github.com/llvm/llvm-project/pull/150946), [#168769](https://github.com/llvm/llvm-project/pull/168769)). Given the amount of trouble we went through so far, it seems unlikely that Clang is going to support this feature in any C++ mode, because C++ has even more features that interact with N3037.
+
+## Go to Definition
+
+Before N3037, when tools like clangd wanted to show users the definition of a type, there was no question what to show, because there was only one definition of it in the source code, even if included into multiple TUs. With N3037, there can be multiple definitions of a type in the same TU which doesn't have to be tokenwise identical, so it matters which one the tool picks.
+
+In the example below, there is no single definition that contains all the information about the type:
+
+```c
+struct S {
+  [[deprecated("don't use 'a'")]] int a;
+  int b;
+};
+
+struct S {
+  int a;
+  [[deprecated("don't use 'b'")]] int b;
+};
+```
+
+
 
 # Approach
 
-Wording for compatibility of types between TUs is basically reverted to C17 state while still handling completeness array types, but now formatted with bullets. Compatibility of types within the same TU now requires them to have the same tag (and have one in the first place), and for their declarations to consist of the same sequence of tokens, where corresponding identifiers denote the same entities.
+Wording for compatibility of types between TUs is basically reverted to C17 state while still handling completeness of array types, but now formatted with bullets. Compatibility of types within the same TU now requires them to have the same tag (and have one in the first place), and for their declarations to consist of the same sequence of tokens, where corresponding identifiers denote the same entities.
 
 # Proposed wording
 
@@ -78,9 +128,11 @@ The removed restriction was only working within a TU, and is now subsumed by muc
 
 ### Semantics
 
+Remove two examples at the end of paragraph 6:
+
 > [6]{.pnum} EXAMPLE 1&nbsp;The following example shows allowed redeclarations of the same structure, union, or enumerated type in the same scope:
 >
-> > ```c
+> > ```
 > > struct foo { struct { int x; }; };
 > > struct foo { struct { int x; }; };
 > >
@@ -99,7 +151,7 @@ The removed restriction was only working within a TU, and is now subsumed by muc
 > > }
 > > ```
 > > ::: rm
-> > ```c
+> > ```
 > > enum X { A = 1, B = 1 + 1 };
 > > enum X { B = 2, A = 1 };
 > >
@@ -107,10 +159,12 @@ The removed restriction was only working within a TU, and is now subsumed by muc
 > > enum Q { C = C }; // ok!
 > > ```
 > > :::
->
+
+Add two examples to the end of paragraph 7:
+
 > [7]{.pnum} EXAMPLE 2&nbsp;The following example shows invalid redeclarations of the same structure, union, or enumerated type in the same scope:
 >
-> > ```c
+> > ```
 > > struct foo { int (*p)[3]; };
 > > struct foo { int (*p)[]; };    // member has different type
 > >
@@ -140,7 +194,7 @@ The removed restriction was only working within a TU, and is now subsumed by muc
 > > enum Q { C = 1 };            // conflicting enumeration constant
 > > ```
 > > ::: add
-> > ```c
+> > ```
 > > enum O { A = 1, B = 1 + 1 };
 > > enum O { A = 1, B = 2 };     // different token sequence
 > >

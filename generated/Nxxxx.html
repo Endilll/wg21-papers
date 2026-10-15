@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="mpark/wg21" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <meta name="dcterms.date" content="2026-09-24" />
+  <meta name="dcterms.date" content="2026-10-14" />
   <title>Tighten type compatibility rules within translation
 unit</title>
   <style>
@@ -622,7 +622,7 @@ rules within translation unit</h1>
   </tr>
   <tr>
     <td>Date:</td>
-    <td>2026-09-24</td>
+    <td>2026-10-14</td>
   </tr>
   <tr>
     <td style="vertical-align:top">Project:</td>
@@ -648,7 +648,17 @@ rules within translation unit</h1>
 <h1 id="toctitle">Contents</h1>
 <ul>
 <li><a href="#abstract" id="toc-abstract"><span class="toc-section-number">1</span> Abstract</a></li>
-<li><a href="#motivation" id="toc-motivation"><span class="toc-section-number">2</span> Motivation</a></li>
+<li><a href="#motivation" id="toc-motivation"><span class="toc-section-number">2</span> Motivation</a>
+<ul>
+<li><a href="#cross-tu-compatibility-rules-are-just-admitting-abi-reality" id="toc-cross-tu-compatibility-rules-are-just-admitting-abi-reality"><span class="toc-section-number">2.1</span> Cross-TU compatibility rules are
+just admitting ABI reality</a></li>
+<li><a href="#global-static-analysis-works-in-c-despite-the-one-definition-rule" id="toc-global-static-analysis-works-in-c-despite-the-one-definition-rule"><span class="toc-section-number">2.2</span> Global static analysis works in
+<span>C<span class="smallplus">++</span></span> despite the One
+Definition Rule</a></li>
+<li><a href="#it-is-not-trivial-to-support-different-definitions-in-the-same-tu" id="toc-it-is-not-trivial-to-support-different-definitions-in-the-same-tu"><span class="toc-section-number">2.3</span> It is not trivial to support
+different definitions in the same TU</a></li>
+<li><a href="#go-to-definition" id="toc-go-to-definition"><span class="toc-section-number">2.4</span> Go to Definition</a></li>
+</ul></li>
 <li><a href="#approach" id="toc-approach"><span class="toc-section-number">3</span> Approach</a></li>
 <li><a href="#proposed-wording" id="toc-proposed-wording"><span class="toc-section-number">4</span> Proposed wording</a>
 <ul>
@@ -666,10 +676,85 @@ that those rules doesn’t need to be as permissive within a translation
 unit to support the motivation of N3037, as that causes a number of side
 effects we consider undesireable.</p>
 <h1 data-number="2" id="motivation"><span class="header-section-number">2</span> Motivation<a href="#motivation" class="self-link"></a></h1>
-<p>TBD</p>
+<h2 data-number="2.1" id="cross-tu-compatibility-rules-are-just-admitting-abi-reality"><span class="header-section-number">2.1</span> Cross-TU compatibility rules
+are just admitting ABI reality<a href="#cross-tu-compatibility-rules-are-just-admitting-abi-reality" class="self-link"></a></h2>
+<p>C17-era compatibility rules across TUs were not designed from first
+principles — they were admitting the reality of how translation phase 8
+is implemented between compilers and linkers, and they were shaped by
+that reality. Linkers perform no semantic checks: if the resulting
+program happens to work, it works. N2366 claims that the existing
+compilers have to implement a version of compatibility rules to perform
+global optimization (LTO), but that missed two important aspects for at
+least one implementation (Clang).</p>
+<p>First, intra-TU type compatibility rules have to be enforces by
+compiler frontend during translation phase 7, whereas cross-TU
+compatibility rules during LTO are enforced by the middle-end during
+translation phase 8. Front-end and middle-end are different parts of the
+compiler that operate on vastly different program representations (AST
+vs LLVM IR), which makes it quite hard to share code between them,
+including the proposed algorithm for evaluating structural
+equivalence.</p>
+<p>Second, the structural equivalence check that LTO can (and need to)
+perform is severely limited by the representation it operates on. The
+following C structure:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> S <span class="op">{</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span> a<span class="op">;</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">const</span> <span class="dt">volatile</span> <span class="kw">_Atomic</span> <span class="dt">int</span> b<span class="op">;</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  _BitInt<span class="op">(</span><span class="dv">17</span><span class="op">)</span> c<span class="op">;</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
+<p>is transformed into the following LLVM IR type:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode llvm"><code class="sourceCode llvm"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">%struct.S</span> = <span class="kw">type</span> { <span class="dt">i32</span>, <span class="dt">i32</span>, <span class="dt">i32</span> }</span></code></pre></div>
+<p>As you can see, the pre-existing type compatibility check for the
+purposes of global optimization ignores a lot of semantics important for
+the Standard C. Given that this has been deployed for years, if not for
+a decade, this loose check is sufficient to perform global
+optimizations.</p>
+<h2 data-number="2.2" id="global-static-analysis-works-in-c-despite-the-one-definition-rule"><span class="header-section-number">2.2</span> Global static analysis works in
+<span>C<span class="smallplus">++</span></span> despite the One
+Definition Rule<a href="#global-static-analysis-works-in-c-despite-the-one-definition-rule" class="self-link"></a></h2>
+<p>It should be noted that <span>C<span class="smallplus">++</span></span> always had a rule that you can have
+only one definition of an entity in a program, which is then relaxed to
+accomodate for entities defined in headers. As far as we know, this
+never prevented static analyzers from performing analysis even on big
+codebases, and we’re not aware of any intents to relax that rule for
+<span>C<span class="smallplus">++</span></span> in the same vein as
+N3037 did.</p>
+<h2 data-number="2.3" id="it-is-not-trivial-to-support-different-definitions-in-the-same-tu"><span class="header-section-number">2.3</span> It is not trivial to support
+different definitions in the same TU<a href="#it-is-not-trivial-to-support-different-definitions-in-the-same-tu" class="self-link"></a></h2>
+<p>Clang, by the virtue of implementing <span>C<span class="smallplus">++</span>20</span> modules, already had a structural
+equivalence check not too dissimilar to what N3037 needs. However,
+switching it on in C23 mode was just a start of a long trail of bugs (<a href="https://github.com/llvm/llvm-project/issues/141724">#141724</a>,
+<a href="https://github.com/llvm/llvm-project/issues/149965">#149965</a>,
+<a href="https://github.com/llvm/llvm-project/issues/150594">#150594</a>,
+<a href="https://github.com/llvm/llvm-project/issues/151394">#151394</a>,
+<a href="https://github.com/llvm/llvm-project/issues/186196">#186196</a>,
+<a href="https://github.com/llvm/llvm-project/issues/188476">#188476</a>,
+<a href="https://github.com/llvm/llvm-project/issues/201647">#201647</a>)
+and fixes (<a href="https://github.com/llvm/llvm-project/pull/138516">#138516</a>, <a href="https://github.com/llvm/llvm-project/pull/141783">#141783</a>, <a href="https://github.com/llvm/llvm-project/pull/150282">#150282</a>, <a href="https://github.com/llvm/llvm-project/pull/150946">#150946</a>, <a href="https://github.com/llvm/llvm-project/pull/168769">#168769</a>).
+Given the amount of trouble we went through so far, it seems unlikely
+that Clang is going to support this feature in any <span>C<span class="smallplus">++</span></span> mode, because <span>C<span class="smallplus">++</span></span> has even more features that interact
+with N3037.</p>
+<h2 data-number="2.4" id="go-to-definition"><span class="header-section-number">2.4</span> Go to Definition<a href="#go-to-definition" class="self-link"></a></h2>
+<p>Before N3037, when tools like clangd wanted to show users the
+definition of a type, there was no question what to show, because there
+was only one definition of it in the source code, even if included into
+multiple TUs. With N3037, there can be multiple definitions of a type in
+the same TU which doesn’t have to be tokenwise identical, so it matters
+which one the tool picks.</p>
+<p>In the example below, there is no single definition that contains all
+the information about the type:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> S <span class="op">{</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="op">[[</span>deprecated<span class="op">(</span><span class="st">&quot;don&#39;t use &#39;a&#39;&quot;</span><span class="op">)]]</span> <span class="dt">int</span> a<span class="op">;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span> b<span class="op">;</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> S <span class="op">{</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span> a<span class="op">;</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  <span class="op">[[</span>deprecated<span class="op">(</span><span class="st">&quot;don&#39;t use &#39;b&#39;&quot;</span><span class="op">)]]</span> <span class="dt">int</span> b<span class="op">;</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
 <h1 data-number="3" id="approach"><span class="header-section-number">3</span> Approach<a href="#approach" class="self-link"></a></h1>
 <p>Wording for compatibility of types between TUs is basically reverted
-to C17 state while still handling completeness array types, but now
+to C17 state while still handling completeness of array types, but now
 formatted with bullets. Compatibility of types within the same TU now
 requires them to have the same tag (and have one in the first place),
 and for their declarations to consist of the same sequence of tokens,
@@ -775,80 +860,84 @@ TU, and is now subsumed by much stricter restriction of token sequences
 being the same. ]</p>
 </div>
 <h3 data-number="4.2.2" id="semantics"><span class="header-section-number">4.2.2</span> Semantics<a href="#semantics" class="self-link"></a></h3>
+<p>Remove two examples at the end of paragraph 6:</p>
 <blockquote>
 <p><span class="marginalizedparent"><a id="pnum-6" href="#pnum-6" class="marginalized">6</a></span>
 EXAMPLE 1 The following example shows allowed redeclarations of the same
 structure, union, or enumerated type in the same scope:</p>
 <blockquote>
-<div class="sourceCode" id="cb1"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> foo <span class="op">{</span> <span class="kw">struct</span> <span class="op">{</span> <span class="dt">int</span> x<span class="op">;</span> <span class="op">};</span> <span class="op">};</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> foo <span class="op">{</span> <span class="kw">struct</span> <span class="op">{</span> <span class="dt">int</span> x<span class="op">;</span> <span class="op">};</span> <span class="op">};</span></span>
+<div class="sourceCode" id="cb1"><pre class="sourceCode default"><code class="sourceCode default"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>struct foo { struct { int x; }; };</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>struct foo { struct { int x; }; };</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="kw">union</span> bar <span class="op">{</span> <span class="dt">int</span> x<span class="op">;</span> <span class="dt">float</span> y<span class="op">;</span> <span class="op">};</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="kw">union</span> bar <span class="op">{</span> <span class="dt">int</span> x<span class="op">;</span> <span class="dt">float</span> y<span class="op">;</span> <span class="op">};</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>union bar { int x; float y; };</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>union bar { int x; float y; };</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> q <span class="op">{</span> <span class="dt">int</span> x<span class="op">;</span> <span class="op">}</span> q_t<span class="op">;</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> q <span class="op">{</span> <span class="dt">int</span> x<span class="op">;</span> <span class="op">}</span> q_t<span class="op">;</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>typedef struct q { int x; } q_t;</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>typedef struct q { int x; } q_t;</span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> foo<span class="op">(</span><span class="dt">void</span><span class="op">)</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> S <span class="op">{</span> <span class="dt">int</span> x<span class="op">;</span> <span class="op">};</span></span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> T <span class="op">{</span> <span class="kw">struct</span> S s<span class="op">;</span> <span class="op">};</span></span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> S <span class="op">{</span> <span class="dt">int</span> x<span class="op">;</span> <span class="op">};</span></span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> T <span class="op">{</span> <span class="kw">struct</span> S s<span class="op">;</span> <span class="op">};</span></span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>void foo(void)</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>{</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    struct S { int x; };</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    struct T { struct S s; };</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    struct S { int x; };</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    struct T { struct S s; };</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
 <div class="rm" style="color: #bf0303">
 
-<div class="sourceCode" id="cb1"><pre class="sourceCode default c"><code class="sourceCode default"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>enum X { A = 1, B = 1 + 1 };</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>enum X { B = 2, A = 1 };</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>enum Q { C = 1 };</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>enum Q { C = C }; <span class="comment">// ok!</span></span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode default default"><code class="sourceCode default"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>enum X { A = 1, B = 1 + 1 };</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>enum X { B = 2, A = 1 };</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>enum Q { C = 1 };</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>enum Q { C = C }; <span class="comment">// ok!</span></span></code></pre></div>
 
 </div>
 </blockquote>
+</blockquote>
+<p>Add two examples to the end of paragraph 7:</p>
+<blockquote>
 <p><span class="marginalizedparent"><a id="pnum-7" href="#pnum-7" class="marginalized">7</a></span>
 EXAMPLE 2 The following example shows invalid redeclarations of the same
 structure, union, or enumerated type in the same scope:</p>
 <blockquote>
-<div class="sourceCode" id="cb2"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> foo <span class="op">{</span> <span class="dt">int</span> <span class="op">(*</span>p<span class="op">)[</span><span class="dv">3</span><span class="op">];</span> <span class="op">};</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> foo <span class="op">{</span> <span class="dt">int</span> <span class="op">(*</span>p<span class="op">)[];</span> <span class="op">};</span>    @<span class="op">[</span><span class="co">// member has different type]{.comment}@</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">union</span> bar <span class="op">{</span> <span class="dt">int</span> x<span class="op">;</span> <span class="dt">float</span> y<span class="op">;</span> <span class="op">};</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="kw">union</span> bar <span class="op">{</span> <span class="dt">int</span> z<span class="op">;</span> <span class="dt">float</span> y<span class="op">;</span> <span class="op">};</span> @<span class="op">[</span><span class="co">// member has different name]{.comment}@</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="kw">union</span> purr <span class="op">{</span> <span class="dt">int</span> x<span class="op">;</span> <span class="dt">float</span> y<span class="op">;</span> <span class="op">};</span></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="kw">union</span> purr <span class="op">{</span> <span class="dt">float</span> y<span class="op">;</span> <span class="dt">int</span> x<span class="op">;</span> <span class="op">};</span> @<span class="op">[</span><span class="co">// members have different order]{.comment}@</span></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>@<span class="op">[</span><span class="co">// purr only valid if each union purr is in]{.comment}@</span></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>@<span class="op">[</span><span class="co">// a different translation unit]{.comment}@</span></span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span> <span class="dt">int</span> x<span class="op">;</span> <span class="op">}</span> q_t<span class="op">;</span></span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span> <span class="dt">int</span> x<span class="op">;</span> <span class="op">}</span> q_t<span class="op">;</span> @<span class="op">[</span><span class="co">// not the same type]{.comment}@</span></span>
-<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> S <span class="op">{</span> <span class="dt">int</span> x<span class="op">;</span> <span class="op">};</span></span>
-<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> foo<span class="op">(</span><span class="dt">void</span><span class="op">)</span></span>
-<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> T <span class="op">{</span> <span class="kw">struct</span> S s<span class="op">;</span> <span class="op">};</span></span>
-<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> S <span class="op">{</span> <span class="dt">int</span> x<span class="op">;</span> <span class="op">};</span></span>
-<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> T <span class="op">{</span> <span class="kw">struct</span> S s<span class="op">;</span> <span class="op">};</span> @<span class="op">[</span><span class="co">// struct S not the same type]{.comment}@</span></span>
-<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
-<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a><span class="kw">enum</span> X <span class="op">{</span> A <span class="op">=</span> <span class="dv">1</span><span class="op">,</span> B <span class="op">=</span> <span class="dv">2</span> <span class="op">};</span></span>
-<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a><span class="kw">enum</span> X <span class="op">{</span> A <span class="op">=</span> <span class="dv">1</span><span class="op">,</span> B <span class="op">=</span> <span class="dv">3</span> <span class="op">};</span>     @<span class="op">[</span><span class="co">// different enumeration constant]{.comment}@</span></span>
-<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a><span class="kw">enum</span> R <span class="op">{</span> C <span class="op">=</span> <span class="dv">1</span> <span class="op">};</span></span>
-<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a><span class="kw">enum</span> Q <span class="op">{</span> C <span class="op">=</span> <span class="dv">1</span> <span class="op">};</span>            @<span class="op">[</span><span class="co">// conflicting enumeration constant]{.comment}@</span></span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode default"><code class="sourceCode default"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>struct foo { int (*p)[3]; };</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>struct foo { int (*p)[]; };    <span class="comment">// member has different type</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>union bar { int x; float y; };</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>union bar { int z; float y; }; <span class="comment">// member has different name</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>union purr { int x; float y; };</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>union purr { float y; int x; }; <span class="comment">// members have different order</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="comment">// purr only valid if each union purr is in</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="comment">// a different translation unit</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>typedef struct { int x; } q_t;</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>typedef struct { int x; } q_t; <span class="comment">// not the same type</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>struct S { int x; };</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>void foo(void)</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>{</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    struct T { struct S s; };</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    struct S { int x; };</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    struct T { struct S s; }; <span class="comment">// struct S not the same type</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>enum X { A = 1, B = 2 };</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>enum X { A = 1, B = 3 };     <span class="comment">// different enumeration constant</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>enum R { C = 1 };</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>enum Q { C = 1 };            <span class="comment">// conflicting enumeration constant</span></span></code></pre></div>
 <div class="add" style="color: #006e28">
 
-<div class="sourceCode" id="cb2"><pre class="sourceCode default c"><code class="sourceCode default"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>enum O { A = 1, B = 1 + 1 };</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>enum O { A = 1, B = 2 };     <span class="comment">// different token sequence</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>const int i;</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>void bar(void)</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>{</span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    struct P { typeof_unqual(i) x; };</span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    const int i;</span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    struct P { typeof_unqual(i) x; }; <span class="comment">// i denotes a different entity</span></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode default default"><code class="sourceCode default"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>enum O { A = 1, B = 1 + 1 };</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>enum O { A = 1, B = 2 };     <span class="comment">// different token sequence</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>const int i;</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>void bar(void)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>{</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    struct P { typeof_unqual(i) x; };</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    const int i;</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    struct P { typeof_unqual(i) x; }; <span class="comment">// i denotes a different entity</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
 
 </div>
 </blockquote>
