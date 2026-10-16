@@ -27,15 +27,15 @@ While N3037 was the paper that was voted into C23, this paper quotes an earlier 
 
 N2366: _"While all other types follow basic structural typing rules for identity and compatibility, tagged types have much more complicated rules which are different when applied to types declared inside the same or in different translation units. [. . .] While it is a common and expected property of type systems that mutual compatibility of types is transitive, this is not the case in C: The sets of types which are mutually compatible to each other do not form equivalence classes."_
 
-C17-era compatibility rules across TUs were not designed from first principles — they were admitting the reality of how translation phase 8 is implemented between compilers and linkers, and they were shaped by that reality. Linkers perform no semantic checks: if the resulting program happens to work, it works.
+C17-era compatibility rules across TUs were not designed from first principles — they were admitting the reality of how translation phase 8 is implemented between compilers and linkers, and they were shaped by that reality. Linkers perform no semantic checks: if the resulting program happens to work, it works. Applying those rules inside a TU based on first principles is misguided.
 
 N2366: _"It should be noted that many existing compilers already implement a version of this algorithm, because they need to to be able to determine compatibility of types across translation units when performing global optimization – removing the difference between compatibility of types declared in the same translation unit and types declared between translation unit would simplify such compilers."_
 
-That missed two important aspects for at least one implementation (Clang).
+That missed three important aspects of our implementation, and we expect that other implementations that support global optimizations (hereafter LTO — link-time optimization) share some of them.
 
-First, intra-TU type compatibility rules have to be enforces by the compiler frontend during translation phase 7, whereas cross-TU compatibility rules during LTO are enforced by the middle-end during translation phase 8. Front-end and middle-end are different parts of the compiler that operate on vastly different program representations (AST vs LLVM IR), which makes it quite hard to share code between them, including the proposed algorithm for evaluating structural equivalence.
+First, intra-TU type compatibility rules have to be enforces by the compiler front-end during translation phase 7, whereas cross-TU compatibility rules during LTO are enforced by the middle-end during translation phase 8. Front-end and middle-end are different parts of the compiler that operate on vastly different program representations (AST vs LLVM IR), which makes it quite hard to share code between them, including the proposed algorithm for evaluating structural equivalence.
 
-Second, the structural equivalence check that LTO can (and need to) perform is severely limited by the representation it operates on. The following C structure:
+Second, the LLVM IR representation that the middle-end (and LTO) operates on has very limited support for various semantics important for the Standard C, which severely limits the set of check that could be performed. The following C structure:
 
 ```c
 struct S {
@@ -51,9 +51,9 @@ is transformed into the following LLVM IR type:
 %struct.S = type { i32, i32, i32 }
 ```
 
-As you can see, the pre-existing type compatibility check for the purposes of global optimization ignores a lot of semantics important for the Standard C. Given that this has been deployed for years, if not for a decade, this loose check is sufficient to perform global optimizations.
+Third, Clang's middle-end doesn not check cross-TU type compatibility rules during LTO for every object or type. It only checks whether TU-wide command-line flags passed to the compiler specify the same ABI (e.g. hard-float vs soft-float). Moreover, even if compatibility of types was checked, it wouldn't be meaningful, as LLVM IR permits, for example, calling a function with a type different from that of its definition.
 
-The example above is based on Clang implementation details, but we expect that other implementations that support LTO share the properties mentioned above.
+One can find it surprising that LTO does so little checking despite having whole-program perspective, but the point of LTO is to optimize the programs, and to do so with as little compile-time overhead as possible. Compile-time cost of LTO is not trivial already, and it is reasonable for implementations to assume that a program works without LTO to drive that cost down instead of burdening LTO with type compatibility checks. Going through our issue tracker, we did not notice any users asking LTO to perform semantic checks, despite LTO being deployed for a decade.
 
 ## It is not trivial to support different definitions in the same TU
 
@@ -61,7 +61,7 @@ N2366: _"This is not expected to be a significant burden to implementors."_
 
 Clang front-end, by the virtue of implementing C++20 modules, already had a structural equivalence check not too dissimilar to what N3037 needs. However, switching it on in C23 mode was just a start of a long trail of bugs ([#141724](https://github.com/llvm/llvm-project/issues/141724), [#149965](https://github.com/llvm/llvm-project/issues/149965), [#150594](https://github.com/llvm/llvm-project/issues/150594), [#151394](https://github.com/llvm/llvm-project/issues/151394), [#186196](https://github.com/llvm/llvm-project/issues/186196), [#188476](https://github.com/llvm/llvm-project/issues/188476), [#201647](https://github.com/llvm/llvm-project/issues/201647)) and fixes ([#138516](https://github.com/llvm/llvm-project/pull/138516), [#141783](https://github.com/llvm/llvm-project/pull/141783), [#150282](https://github.com/llvm/llvm-project/pull/150282), [#150946](https://github.com/llvm/llvm-project/pull/150946), [#168769](https://github.com/llvm/llvm-project/pull/168769)).
 
-N3037 affects the semantic analysis of the code that goes into headers, which might be consumed by a C++ compiler. Given the amount of trouble we went through so far to make N3037 work in C23 language mode, it seems unlikely that Clang is going to support this feature in any C++ mode, because C++ has even more features that interact with N3037. This means that C projects that would like their headers to be working in C++ compilers will have to abandon a significant chunk of C++ users which use Clang.
+N3037 affects the semantic analysis of the code that goes into headers, which might be consumed by a C++ compiler. Given the amount of trouble we went through so far to make N3037 work in C23 language mode, it seems unlikely that Clang is going to support this feature in any C++ mode, because C++ has even more features that interact with N3037. This means that C projects that would like their headers to be working in C++ compilers will likely have to abandon a significant chunk of C++ users which use Clang.
 
 ```c
 #define PRODUCT(A ,B) \
