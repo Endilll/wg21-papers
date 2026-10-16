@@ -1610,10 +1610,12 @@ composite type</a></li>
 <h1 data-number="1" id="abstract"><span class="header-section-number">1</span> Abstract<a href="#abstract" class="self-link"></a></h1>
 <p><a href="https://open-std.org/JTC1/SC22/WG14/www/docs/n3037.pdf">N3037</a>
 “Improved Rules for Tag Compatibility” applied cross-translation-unit
-rules of type compatibility within the same translation unit. We believe
-that those rules doesn’t need to be as permissive within a translation
-unit to support the motivation of N3037, as that causes a number of side
-effects we consider undesireable.</p>
+rules of type compatibility within the same translation unit, allowing
+multiple definition of a type within a single TU. We believe that those
+rules doesn’t need to be as permissive within a translation unit to
+support the motivation of N3037, as that causes multitude of
+implementation issues and causes a number of side effects we consider
+undesireable.</p>
 <h1 data-number="2" id="why-is-n2366-being-referred-to"><span class="header-section-number">2</span> Why is N2366 being referred to?<a href="#why-is-n2366-being-referred-to" class="self-link"></a></h1>
 <p>While N3037 was the paper that was voted into C23, this paper quotes
 an earlier revision of it, <a href="https://open-std.org/JTC1/SC22/WG14/www/docs/n2366.pdf">N2366</a>,
