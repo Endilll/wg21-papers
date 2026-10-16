@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="mpark/wg21" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <meta name="dcterms.date" content="2026-10-15" />
+  <meta name="dcterms.date" content="2026-10-16" />
   <title>Tighten type compatibility rules within translation
 unit</title>
   <style>
@@ -1555,7 +1555,7 @@ rules within translation unit</h1>
   </tr>
   <tr>
     <td>Date:</td>
-    <td>2026-10-15</td>
+    <td>2026-10-16</td>
   </tr>
   <tr>
     <td style="vertical-align:top">Project:</td>
@@ -1572,6 +1572,7 @@ rules within translation unit</h1>
     <td>
       Vlad Serebrennikov<br>&lt;<a href="mailto:serebrennikov.vladislav@gmail.com" class="email">serebrennikov.vladislav@gmail.com</a>&gt;<br>
       Aaron Ballman<br>&lt;<a href="mailto:aaron@aaronballman.com" class="email">aaron@aaronballman.com</a>&gt;<br>
+      Joshua Cranmer<br>&lt;<a href="mailto:joshua.cranmer@intel.com" class="email">joshua.cranmer@intel.com</a>&gt;<br>
     </td>
   </tr>
 </table>
@@ -1634,8 +1635,8 @@ classes.”</em></p>
 principles — they were admitting the reality of how translation phase 8
 is implemented between compilers and linkers, and they were shaped by
 that reality. Linkers perform no semantic checks: if the resulting
-program happens to work, it works. Applying those rules inside a TU
-based on first principles is misguided.</p>
+program happens to work, it works. We do not think that applying those
+rules inside a TU based on first principles is correct.</p>
 <p>N2366: <em>“It should be noted that many existing compilers already
 implement a version of this algorithm, because they need to to be able
 to determine compatibility of types across translation units when
@@ -1695,7 +1696,12 @@ trail of bugs (<a href="https://github.com/llvm/llvm-project/issues/141724">#141
 <a href="https://github.com/llvm/llvm-project/issues/186196">#186196</a>,
 <a href="https://github.com/llvm/llvm-project/issues/188476">#188476</a>,
 <a href="https://github.com/llvm/llvm-project/issues/201647">#201647</a>)
-and fixes (<a href="https://github.com/llvm/llvm-project/pull/138516">#138516</a>, <a href="https://github.com/llvm/llvm-project/pull/141783">#141783</a>, <a href="https://github.com/llvm/llvm-project/pull/150282">#150282</a>, <a href="https://github.com/llvm/llvm-project/pull/150946">#150946</a>, <a href="https://github.com/llvm/llvm-project/pull/168769">#168769</a>).</p>
+and fixes (<a href="https://github.com/llvm/llvm-project/pull/138516">#138516</a>, <a href="https://github.com/llvm/llvm-project/pull/141783">#141783</a>, <a href="https://github.com/llvm/llvm-project/pull/150282">#150282</a>, <a href="https://github.com/llvm/llvm-project/pull/150946">#150946</a>, <a href="https://github.com/llvm/llvm-project/pull/168769">#168769</a>).
+While working on this paper, authors found even more issues: <a href="https://github.com/llvm/llvm-project/issues/232741">#232741</a>,
+<a href="https://github.com/llvm/llvm-project/issues/232742">#232742</a>,
+<a href="https://github.com/llvm/llvm-project/issues/232745">#232745</a>,
+<a href="https://github.com/llvm/llvm-project/issues/232748">#232748</a>,
+and <a href="https://github.com/llvm/llvm-project/issues/232751">#232751</a>.</p>
 <p>N3037 affects the semantic analysis of the code that goes into
 headers, which might be consumed by a C++ compiler. Given the amount of
 trouble we went through so far to make N3037 work in C23 language mode,

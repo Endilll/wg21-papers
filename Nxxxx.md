@@ -1,13 +1,15 @@
 ---
 title: "Tighten type compatibility rules within translation unit"
 document: Nxxxx
-date: 2026-10-15
+date: 2026-10-16
 audience: WG14
 author:
   - name: Vlad Serebrennikov
     email: <serebrennikov.vladislav@gmail.com>
   - name: Aaron Ballman
     email: <aaron@aaronballman.com>
+  - name: Joshua Cranmer
+    email: <joshua.cranmer@intel.com>
 toc: true
 toc-depth: 2
 ---
@@ -27,7 +29,7 @@ While N3037 was the paper that was voted into C23, this paper quotes an earlier 
 
 N2366: _"While all other types follow basic structural typing rules for identity and compatibility, tagged types have much more complicated rules which are different when applied to types declared inside the same or in different translation units. [. . .] While it is a common and expected property of type systems that mutual compatibility of types is transitive, this is not the case in C: The sets of types which are mutually compatible to each other do not form equivalence classes."_
 
-C17-era compatibility rules across TUs were not designed from first principles — they were admitting the reality of how translation phase 8 is implemented between compilers and linkers, and they were shaped by that reality. Linkers perform no semantic checks: if the resulting program happens to work, it works. Applying those rules inside a TU based on first principles is misguided.
+C17-era compatibility rules across TUs were not designed from first principles — they were admitting the reality of how translation phase 8 is implemented between compilers and linkers, and they were shaped by that reality. Linkers perform no semantic checks: if the resulting program happens to work, it works. We do not think that applying those rules inside a TU based on first principles is correct.
 
 N2366: _"It should be noted that many existing compilers already implement a version of this algorithm, because they need to to be able to determine compatibility of types across translation units when performing global optimization – removing the difference between compatibility of types declared in the same translation unit and types declared between translation unit would simplify such compilers."_
 
@@ -59,7 +61,7 @@ One can find it surprising that LTO does so little checking despite having whole
 
 N2366: _"This is not expected to be a significant burden to implementors."_
 
-Clang front-end, by the virtue of implementing C++20 modules, already had a structural equivalence check not too dissimilar to what N3037 needs. However, switching it on in C23 mode was just a start of a long trail of bugs ([#141724](https://github.com/llvm/llvm-project/issues/141724), [#149965](https://github.com/llvm/llvm-project/issues/149965), [#150594](https://github.com/llvm/llvm-project/issues/150594), [#151394](https://github.com/llvm/llvm-project/issues/151394), [#186196](https://github.com/llvm/llvm-project/issues/186196), [#188476](https://github.com/llvm/llvm-project/issues/188476), [#201647](https://github.com/llvm/llvm-project/issues/201647)) and fixes ([#138516](https://github.com/llvm/llvm-project/pull/138516), [#141783](https://github.com/llvm/llvm-project/pull/141783), [#150282](https://github.com/llvm/llvm-project/pull/150282), [#150946](https://github.com/llvm/llvm-project/pull/150946), [#168769](https://github.com/llvm/llvm-project/pull/168769)).
+Clang front-end, by the virtue of implementing C++20 modules, already had a structural equivalence check not too dissimilar to what N3037 needs. However, switching it on in C23 mode was just a start of a long trail of bugs ([#141724](https://github.com/llvm/llvm-project/issues/141724), [#149965](https://github.com/llvm/llvm-project/issues/149965), [#150594](https://github.com/llvm/llvm-project/issues/150594), [#151394](https://github.com/llvm/llvm-project/issues/151394), [#186196](https://github.com/llvm/llvm-project/issues/186196), [#188476](https://github.com/llvm/llvm-project/issues/188476), [#201647](https://github.com/llvm/llvm-project/issues/201647)) and fixes ([#138516](https://github.com/llvm/llvm-project/pull/138516), [#141783](https://github.com/llvm/llvm-project/pull/141783), [#150282](https://github.com/llvm/llvm-project/pull/150282), [#150946](https://github.com/llvm/llvm-project/pull/150946), [#168769](https://github.com/llvm/llvm-project/pull/168769)). While working on this paper, authors found even more issues: [#232741](https://github.com/llvm/llvm-project/issues/232741), [#232742](https://github.com/llvm/llvm-project/issues/232742), [#232745](https://github.com/llvm/llvm-project/issues/232745), [#232748](https://github.com/llvm/llvm-project/issues/232748), and [#232751](https://github.com/llvm/llvm-project/issues/232751).
 
 N3037 affects the semantic analysis of the code that goes into headers, which might be consumed by a C++ compiler. Given the amount of trouble we went through so far to make N3037 work in C23 language mode, it seems unlikely that Clang is going to support this feature in any C++ mode, because C++ has even more features that interact with N3037. This means that C projects that would like their headers to be working in C++ compilers will likely have to abandon a significant chunk of C++ users which use Clang.
 
